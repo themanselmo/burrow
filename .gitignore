@@ -1,0 +1,17 @@
+# Binaries
+burrow
+/dist/
+
+# Go
+*.exe
+*.test
+*.out
+vendor/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+*.swp
