@@ -1,27 +1,20 @@
 package locale
 
 import (
+	_ "embed"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
+//go:embed en.yml
+var localeData []byte
+
 var strings_ map[string]interface{}
 
 func Load() error {
-	_, file, _, _ := runtime.Caller(0)
-	root := filepath.Join(filepath.Dir(file), "..", "..", "locales", "en.yml")
-
-	data, err := os.ReadFile(root)
-	if err != nil {
-		return fmt.Errorf("failed to load locale file: %w", err)
-	}
-
-	return yaml.Unmarshal(data, &strings_)
+	return yaml.Unmarshal(localeData, &strings_)
 }
 
 func T(key string) string {
