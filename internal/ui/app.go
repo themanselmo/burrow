@@ -3,9 +3,9 @@ package ui
 import (
 	"time"
 
-	"github.com/anselmo/burrow/internal/mission"
-	"github.com/anselmo/burrow/internal/pet"
-	"github.com/anselmo/burrow/internal/storage"
+	"github.com/themanselmo/burrow/internal/mission"
+	"github.com/themanselmo/burrow/internal/pet"
+	"github.com/themanselmo/burrow/internal/storage"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -22,6 +22,7 @@ const (
 	screenMissionActive
 	screenMissionComplete
 	screenInventory
+	screenShop
 )
 
 type AppModel struct {
@@ -36,6 +37,7 @@ type AppModel struct {
 	missionActive   MissionActiveModel
 	missionComplete MissionCompleteModel
 	inventory       InventoryModel
+	shop            ShopModel
 	pet             *pet.Pet
 	storage         *storage.State
 }
@@ -59,9 +61,13 @@ func NewAppModel(state *storage.State) AppModel {
 	if state.Mission != nil {
 		if state.Mission.IsComplete() {
 			result := state.Mission.Calculate()
-			m.pet.GainXP(result.XP)
-			if result.Item != nil {
-				state.Items = append(state.Items, *result.Item)
+			if result.Type == mission.TypeSleep {
+				m.pet.CompleteSleep()
+			} else {
+				m.pet.CompleteMission(result.XP, result.Coins)
+				if result.Item != nil {
+					state.Items = append(state.Items, *result.Item)
+				}
 			}
 			state.Mission = nil
 			_ = storage.SaveState(state)
@@ -136,9 +142,23 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.naming = NewNamingModel()
 		return m, m.naming.Init()
 
+	case OpenShopMsg:
+		m.screen = screenShop
+		m.shop = NewShopModel(m.pet)
+		return m, m.shop.Init()
+
+	case ShopBackMsg:
+		m.screen = screenHome
+		return m, nil
+
+	case ShopPurchasedMsg:
+		m.pet.EatFood(msg.EnergyRestore)
+		m.screen = screenHome
+		return m, nil
+
 	case OpenMissionStartMsg:
 		m.screen = screenMissionStart
-		m.missionStart = NewMissionStartModel()
+		m.missionStart = NewMissionStartModel(msg.Sleep, m.pet.Name, m.pet.Energy)
 		return m, m.missionStart.Init()
 
 	case MissionCancelMsg:
@@ -146,7 +166,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case MissionStartMsg:
-		ms := mission.New(msg.DurationMinutes, nil)
+		var ms *mission.Mission
+		if msg.Sleep {
+			ms = mission.NewSleep(msg.DurationMinutes)
+		} else {
+			cost := mission.EnergyCost(msg.DurationMinutes)
+			m.pet.Energy -= cost
+			if m.pet.Energy < 0 {
+				m.pet.Energy = 0
+			}
+			ms = mission.NewExplore(msg.DurationMinutes, nil)
+		}
 		m.storage.Mission = ms
 		_ = storage.SaveState(m.storage)
 		m.screen = screenMissionActive
@@ -159,9 +189,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		result := m.storage.Mission.Calculate()
-		m.pet.GainXP(result.XP)
-		if result.Item != nil {
-			m.storage.Items = append(m.storage.Items, *result.Item)
+		if result.Type == mission.TypeSleep {
+			m.pet.CompleteSleep()
+		} else {
+			m.pet.CompleteMission(result.XP, result.Coins)
+			if result.Item != nil {
+				m.storage.Items = append(m.storage.Items, *result.Item)
+			}
 		}
 		m.storage.Mission = nil
 		_ = storage.SaveState(m.storage)
@@ -245,6 +279,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, cmd := m.inventory.Update(msg)
 		m.inventory = updated.(InventoryModel)
 		return m, cmd
+
+	case screenShop:
+		updated, cmd := m.shop.Update(msg)
+		m.shop = updated.(ShopModel)
+		return m, cmd
 	}
 
 	return m, nil
@@ -272,6 +311,8 @@ func (m AppModel) View() string {
 		return m.missionComplete.View()
 	case screenInventory:
 		return m.inventory.View()
+	case screenShop:
+		return m.shop.View()
 	}
 	return ""
 }

@@ -100,6 +100,21 @@ func TestMinutesRemaining_AlmostDone(t *testing.T) {
 	}
 }
 
+func TestEnergyCost_Scales(t *testing.T) {
+	if EnergyCost(25) != 20 {
+		t.Errorf("expected 20 energy cost for 25min, got %f", EnergyCost(25))
+	}
+	if EnergyCost(45) != 36 {
+		t.Errorf("expected 36 energy cost for 45min, got %f", EnergyCost(45))
+	}
+}
+
+func TestEnergyCost_Cap(t *testing.T) {
+	if EnergyCost(480) > 70 {
+		t.Errorf("expected energy cost capped at 70, got %f", EnergyCost(480))
+	}
+}
+
 func TestRandomTheme_AlwaysValid(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		theme := RandomTheme(nil)

@@ -1,4 +1,4 @@
-module github.com/anselmo/burrow
+module github.com/themanselmo/burrow
 
 go 1.26.2
 

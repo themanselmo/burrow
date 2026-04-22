@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anselmo/burrow/internal/locale"
-	"github.com/anselmo/burrow/internal/pet"
+	"github.com/themanselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/pet"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )

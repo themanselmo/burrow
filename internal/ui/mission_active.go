@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anselmo/burrow/internal/locale"
-	"github.com/anselmo/burrow/internal/mission"
-	"github.com/anselmo/burrow/internal/pet"
+	"github.com/themanselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/mission"
+	"github.com/themanselmo/burrow/internal/pet"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -61,13 +61,20 @@ func (m MissionActiveModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m MissionActiveModel) View() string {
-	theme, ok := mission.Themes[m.mission.Theme]
-	if !ok {
-		theme = mission.Themes["forest_path"]
+	isSleep := m.mission.Type == mission.TypeSleep
+
+	var waypoints []mission.Waypoint
+	if isSleep {
+		waypoints = mission.DreamWaypoints
+	} else {
+		theme, ok := mission.Themes[m.mission.Theme]
+		if !ok {
+			theme = mission.Themes["forest_path"]
+		}
+		waypoints = theme.Waypoints
 	}
 
 	fraction := m.mission.ElapsedFraction()
-	waypoints := theme.Waypoints
 	numWaypoints := len(waypoints)
 
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
@@ -127,9 +134,19 @@ func (m MissionActiveModel) View() string {
 		currentWaypointIdx = numWaypoints - 1
 	}
 	flavorText := locale.Tf("mission.flavor", m.pet.Name, waypoints[currentWaypointIdx].FlavorIn)
+	if isSleep {
+		flavorText += locale.T("mission.in_their_dreams")
+	}
 
-	// Walking sprite
-	spriteRender := accentStyle.Render(strings.Join(AnimWalk[m.walkFrame], "\n"))
+	// Sprite — walking for explore, sleeping for sleep
+	var spriteFrames Animation
+	if m.mission.Type == mission.TypeSleep {
+		spriteFrames = AnimAsleep
+	} else {
+		spriteFrames = AnimWalk
+	}
+	frame := m.walkFrame % len(spriteFrames)
+	spriteRender := accentStyle.Render(strings.Join(spriteFrames[frame], "\n"))
 
 	minsRemaining := m.mission.MinutesRemaining()
 	timeStr := fmt.Sprintf("%d %s", minsRemaining, locale.T("mission.minutes_remaining"))
@@ -137,8 +154,16 @@ func (m MissionActiveModel) View() string {
 		timeStr = locale.T("mission.almost_back")
 	}
 
+	header := locale.T("mission.sleep_active_header")
+	if !isSleep {
+		theme, ok := mission.Themes[m.mission.Theme]
+		if ok {
+			header = theme.Name
+		}
+	}
+
 	var sb strings.Builder
-	sb.WriteString(headerStyle.Render(theme.Name) + "\n\n")
+	sb.WriteString(headerStyle.Render(header) + "\n\n")
 	sb.WriteString(spriteRender + "\n\n")
 	sb.WriteString(dimStyle.Render(flavorText) + "\n\n")
 	sb.WriteString(markers + "\n")
@@ -146,7 +171,11 @@ func (m MissionActiveModel) View() string {
 	sb.WriteString(petLine + "\n")
 	sb.WriteString(labels + "\n\n")
 	sb.WriteString(activeStyle.Render(timeStr) + "\n\n")
-	sb.WriteString(dimStyle.Render(locale.T("mission.active_hint")))
+	hint := locale.T("mission.active_hint")
+	if m.mission.Type == mission.TypeSleep {
+		hint = locale.T("mission.sleeping_hint")
+	}
+	sb.WriteString(dimStyle.Render(hint))
 
 	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

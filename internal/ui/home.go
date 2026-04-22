@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anselmo/burrow/internal/locale"
-	"github.com/anselmo/burrow/internal/pet"
+	"github.com/themanselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/pet"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -17,8 +17,9 @@ type animTickMsg time.Time
 
 type OpenLogMsg struct{}
 type OpenReleaseMsg struct{}
-type OpenMissionStartMsg struct{}
+type OpenMissionStartMsg struct{ Sleep bool }
 type OpenInventoryMsg struct{}
+type OpenShopMsg struct{}
 type MissionCompleteCheckMsg struct{}
 type QuitMsg struct{ Abrupt bool }
 
@@ -40,7 +41,8 @@ type HomeModel struct {
 	height     int
 	anim       Animation
 	animFrame  int
-	idleFrames int // ticks remaining before next animation plays
+	idleFrames int
+	notice     string
 }
 
 func NewHomeModel(p *pet.Pet) HomeModel {
@@ -63,6 +65,7 @@ func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case attrTickMsg:
 		m.pet.Tick()
+		m.notice = ""
 		return m, attrTickCmd()
 
 	case animTickMsg:
@@ -71,18 +74,24 @@ func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch strings.ToLower(msg.String()) {
-		case "f":
-			m.pet.Feed()
 		case "p":
-			m.pet.Pet_()
+			m.pet.PetAction()
 		case "a":
 			m.pet.Play()
 		case "l":
 			return m, func() tea.Msg { return OpenLogMsg{} }
 		case "i":
 			return m, func() tea.Msg { return OpenInventoryMsg{} }
+		case "s":
+			return m, func() tea.Msg { return OpenShopMsg{} }
 		case "m":
-			return m, func() tea.Msg { return OpenMissionStartMsg{} }
+			if !m.pet.CanGoOnMission() {
+				m.notice = locale.T("ui.no_energy")
+				return m, nil
+			}
+			return m, func() tea.Msg { return OpenMissionStartMsg{Sleep: false} }
+		case "z":
+			return m, func() tea.Msg { return OpenMissionStartMsg{Sleep: true} }
 		case "r":
 			return m, func() tea.Msg { return OpenReleaseMsg{} }
 		case "q", "ctrl+c":
@@ -168,23 +177,27 @@ func (m HomeModel) View() string {
 		return lipgloss.JoinHorizontal(lipgloss.Top, labelStyle.Render(label), b, dimStyle.Render(fmt.Sprintf(" %d%%", int(val))))
 	}
 
+	coinStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
 	stats := strings.Join([]string{
-		bar(locale.T("ui.hunger"), m.pet.Hunger),
-		bar(locale.T("ui.happiness"), m.pet.Happiness),
 		bar(locale.T("ui.energy"), m.pet.Energy),
-		bar(locale.T("ui.affection"), m.pet.Affection),
+		bar(locale.T("ui.mood"), m.pet.MoodLevel),
+		"",
+		coinStyle.Render(fmt.Sprintf("  ◈ %d %s", m.pet.Coins, locale.T("ui.coins"))),
 	}, "\n")
 
-	actions := dimStyle.Render(strings.Join([]string{
-		locale.T("ui.action_feed"),
-		locale.T("ui.action_pet"),
-		locale.T("ui.action_play"),
-		locale.T("ui.action_log"),
-		locale.T("ui.action_inventory"),
-		locale.T("ui.action_mission"),
-		locale.T("ui.action_release"),
-		locale.T("ui.action_quit"),
-	}, "  "))
+	noticeStr := ""
+	if m.notice != "" {
+		noticeStr = "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.notice)
+	}
+
+	row := func(keys ...string) string {
+		return dimStyle.Render(strings.Join(keys, "  "))
+	}
+	actions := strings.Join([]string{
+		row(locale.T("ui.action_pet"), locale.T("ui.action_play"), locale.T("ui.action_shop")),
+		row(locale.T("ui.action_mission"), locale.T("ui.action_sleep")),
+		row(locale.T("ui.action_log"), locale.T("ui.action_inventory"), locale.T("ui.action_release"), locale.T("ui.action_quit")),
+	}, "\n")
 
 	habitatStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -201,6 +214,7 @@ func (m HomeModel) View() string {
 			nameHeader,
 			"",
 			stats,
+			noticeStr,
 			"",
 			actions,
 		))

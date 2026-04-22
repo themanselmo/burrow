@@ -111,6 +111,47 @@ var sealSleepy = []string{
 	`  ██ ██  `,
 }
 
+// Sleeping frames — z's float diagonally up and to the right from the head.
+var sealAsleep1 = []string{
+	`  ▄███▄  `,
+	` █ ─ ─ █ `,
+	` █  ▿  █ `,
+	`  ▀███▀  `,
+	`  ██ ██  `,
+}
+
+var sealAsleep2 = []string{
+	`  ▄███▄  `,
+	` █ ─ ─ █z`,
+	` █  ▿  █ `,
+	`  ▀███▀  `,
+	`  ██ ██  `,
+}
+
+var sealAsleep3 = []string{
+	`  ▄███▄ z`,
+	` █ ─ ─ █z`,
+	` █  ▿  █ `,
+	`  ▀███▀  `,
+	`  ██ ██  `,
+}
+
+var sealAsleep4 = []string{
+	`  ▄███▄Z `,
+	` █ ─ ─ █z`,
+	` █  ▿  █ `,
+	`  ▀███▀  `,
+	`  ██ ██  `,
+}
+
+var sealAsleep5 = []string{
+	` Z▄███▄  `,
+	` █ ─ ─ █ `,
+	` █  ▿  █ `,
+	`  ▀███▀  `,
+	`  ██ ██  `,
+}
+
 var sealWalk1 = []string{
 	`  ▄███▄  `,
 	` █ ◉ ◉ █ `,
@@ -213,6 +254,11 @@ var AnimSleepyNod = Animation{
 
 var AnimWalk = Animation{
 	sealWalk1, sealWalk2, sealWalk3, sealWalk4,
+}
+
+var AnimAsleep = Animation{
+	sealAsleep1, sealAsleep1, sealAsleep2,
+	sealAsleep3, sealAsleep4, sealAsleep5, sealAsleep1,
 }
 
 var AnimFarewell = Animation{

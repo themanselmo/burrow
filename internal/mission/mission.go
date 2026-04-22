@@ -5,6 +5,13 @@ import (
 	"time"
 )
 
+type Type string
+
+const (
+	TypeExplore Type = "explore"
+	TypeSleep   Type = "sleep"
+)
+
 type Item struct {
 	Name  string `json:"name"`
 	Theme string `json:"theme"`
@@ -14,10 +21,13 @@ type Mission struct {
 	StartedAt       time.Time `json:"started_at"`
 	DurationMinutes int       `json:"duration_minutes"`
 	Theme           string    `json:"theme"`
+	Type            Type      `json:"type"`
 }
 
 type Result struct {
+	Type     Type
 	XP       int
+	Coins    int
 	Item     *Item
 	Duration int
 }
@@ -68,6 +78,14 @@ var Themes = map[string]Theme{
 
 var FreeThemes = []string{"forest_path", "mountain_pass"}
 
+// DreamWaypoints are used for sleep missions instead of explore themes.
+var DreamWaypoints = []Waypoint{
+	{Label: "Cloud Fields", FlavorIn: "floating on a warm fluffy cloud"},
+	{Label: "The Warm Rock", FlavorIn: "basking under an endless golden sun"},
+	{Label: "Starlit Waters", FlavorIn: "drifting through a glowing deep blue sea"},
+	{Label: "Home", FlavorIn: "slowly drifting back to the surface"},
+}
+
 func RandomTheme(owned []string) Theme {
 	pool := owned
 	if len(pool) == 0 {
@@ -104,10 +122,27 @@ func (m *Mission) MinutesRemaining() int {
 	return int(rem.Minutes()) + 1
 }
 
+func EnergyCost(durationMinutes int) float64 {
+	cost := float64(durationMinutes) * 0.8
+	if cost > 70 {
+		cost = 70
+	}
+	return cost
+}
+
 func (m *Mission) Calculate() Result {
+	if m.Type == TypeSleep {
+		return Result{Type: TypeSleep, Duration: m.DurationMinutes}
+	}
+
 	xp := m.DurationMinutes * 4
 	if xp > 250 {
 		xp = 250
+	}
+
+	coins := int(float64(m.DurationMinutes) * 0.4)
+	if coins > 25 {
+		coins = 25
 	}
 
 	var dropped *Item
@@ -121,10 +156,10 @@ func (m *Mission) Calculate() Result {
 		dropped = &pick
 	}
 
-	return Result{XP: xp, Item: dropped, Duration: m.DurationMinutes}
+	return Result{Type: TypeExplore, XP: xp, Coins: coins, Item: dropped, Duration: m.DurationMinutes}
 }
 
-func New(durationMinutes int, ownedThemes []string) *Mission {
+func NewExplore(durationMinutes int, ownedThemes []string) *Mission {
 	theme := RandomTheme(ownedThemes)
 	key := ""
 	for k, t := range Themes {
@@ -137,5 +172,14 @@ func New(durationMinutes int, ownedThemes []string) *Mission {
 		StartedAt:       time.Now(),
 		DurationMinutes: durationMinutes,
 		Theme:           key,
+		Type:            TypeExplore,
+	}
+}
+
+func NewSleep(durationMinutes int) *Mission {
+	return &Mission{
+		StartedAt:       time.Now(),
+		DurationMinutes: durationMinutes,
+		Type:            TypeSleep,
 	}
 }

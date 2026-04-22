@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/anselmo/burrow/internal/mission"
-	"github.com/anselmo/burrow/internal/pet"
+	"github.com/themanselmo/burrow/internal/mission"
+	"github.com/themanselmo/burrow/internal/pet"
 )
 
 type State struct {

@@ -3,7 +3,7 @@ package ui
 import (
 	"strings"
 
-	"github.com/anselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/locale"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

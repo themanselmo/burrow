@@ -1,16 +1,21 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
-	"github.com/anselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/mission"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type MissionCancelMsg struct{}
-type MissionStartMsg struct{ DurationMinutes int }
+type MissionStartMsg struct {
+	DurationMinutes int
+	Sleep           bool
+}
 
 type missionOption struct {
 	label   string
@@ -28,14 +33,21 @@ type MissionStartModel struct {
 	customMode  bool
 	customInput textinput.Model
 	err         string
+	sleep       bool
+	petName     string
+	petEnergy   float64
 }
 
-func NewMissionStartModel() MissionStartModel {
+func NewMissionStartModel(sleep bool, petName string, petEnergy float64) MissionStartModel {
 	ti := textinput.New()
-	ti.Placeholder = "minutes (max 90 for full XP)"
+	if sleep {
+		ti.Placeholder = "minutes"
+	} else {
+		ti.Placeholder = "minutes (max 90 for full XP)"
+	}
 	ti.CharLimit = 4
 	ti.Width = 32
-	return MissionStartModel{customInput: ti}
+	return MissionStartModel{customInput: ti, sleep: sleep, petName: petName, petEnergy: petEnergy}
 }
 
 func (m MissionStartModel) Init() tea.Cmd { return nil }
@@ -48,10 +60,12 @@ func (m MissionStartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
 		case "up", "k":
+			m.err = ""
 			if m.cursor > 0 {
 				m.cursor--
 			}
 		case "down", "j":
+			m.err = ""
 			if m.cursor < len(missionOptions)-1 {
 				m.cursor++
 			}
@@ -62,7 +76,15 @@ func (m MissionStartModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.customInput.Focus()
 				return m, textinput.Blink
 			}
-			return m, func() tea.Msg { return MissionStartMsg{DurationMinutes: opt.minutes} }
+			if !m.sleep {
+				cost := mission.EnergyCost(opt.minutes)
+				if m.petEnergy < cost {
+					m.err = locale.Tf("mission.not_enough_energy", int(cost))
+					return m, nil
+				}
+			}
+			sleep := m.sleep
+			return m, func() tea.Msg { return MissionStartMsg{DurationMinutes: opt.minutes, Sleep: sleep} }
 		case "esc", "q":
 			return m, func() tea.Msg { return MissionCancelMsg{} }
 		case "ctrl+c":
@@ -78,12 +100,20 @@ func (m MissionStartModel) updateCustom(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			val := strings.TrimSpace(m.customInput.Value())
 			var mins int
-			_, err := parseMinutes(val, &mins)
-			if err != "" {
-				m.err = err
+			_, errStr := parseMinutes(val, &mins)
+			if errStr != "" {
+				m.err = errStr
 				return m, nil
 			}
-			return m, func() tea.Msg { return MissionStartMsg{DurationMinutes: mins} }
+			if !m.sleep {
+				cost := mission.EnergyCost(mins)
+				if m.petEnergy < cost {
+					m.err = locale.Tf("mission.not_enough_energy", int(cost))
+					return m, nil
+				}
+			}
+			sleep := m.sleep
+			return m, func() tea.Msg { return MissionStartMsg{DurationMinutes: mins, Sleep: sleep} }
 		case tea.KeyEsc:
 			m.customMode = false
 			m.customInput.Blur()
@@ -122,10 +152,17 @@ func (m MissionStartModel) View() string {
 	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("10")).Bold(true)
 	normalStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
 	errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+	costStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	lockedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
 	var sb strings.Builder
-	sb.WriteString(headerStyle.Render(locale.T("mission.start_header")) + "\n")
-	sb.WriteString(dimStyle.Render(locale.T("mission.start_sub")) + "\n\n")
+	if m.sleep {
+		sb.WriteString(headerStyle.Render(locale.Tf("mission.sleep_header", m.petName)) + "\n")
+		sb.WriteString(dimStyle.Render(locale.T("mission.sleep_sub")) + "\n\n")
+	} else {
+		sb.WriteString(headerStyle.Render(locale.T("mission.start_header")) + "\n")
+		sb.WriteString(dimStyle.Render(locale.T("mission.start_sub")) + "\n\n")
+	}
 
 	if m.customMode {
 		sb.WriteString(dimStyle.Render(locale.T("mission.custom_prompt")) + "\n")
@@ -137,12 +174,32 @@ func (m MissionStartModel) View() string {
 	} else {
 		for i, opt := range missionOptions {
 			cursor := "  "
-			style := normalStyle
+			labelStyle := normalStyle
+
+			var costSuffix string
+			locked := false
+			if !m.sleep && opt.minutes > 0 {
+				cost := mission.EnergyCost(opt.minutes)
+				if m.petEnergy < cost {
+					locked = true
+					costSuffix = lockedStyle.Render(fmt.Sprintf("  -%d energy (too tired)", int(cost)))
+					labelStyle = lockedStyle
+				} else {
+					costSuffix = costStyle.Render(fmt.Sprintf("  -%d energy", int(cost)))
+				}
+			}
+
 			if i == m.cursor {
 				cursor = "▶ "
-				style = selectedStyle
+				if !locked {
+					labelStyle = selectedStyle
+				}
 			}
-			sb.WriteString(cursor + style.Render(opt.label) + "\n")
+
+			sb.WriteString(cursor + labelStyle.Render(opt.label) + costSuffix + "\n")
+		}
+		if m.err != "" {
+			sb.WriteString("\n" + errStyle.Render(m.err))
 		}
 		sb.WriteString("\n" + dimStyle.Render(locale.T("mission.start_hint")))
 	}

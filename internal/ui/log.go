@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/anselmo/burrow/internal/locale"
-	"github.com/anselmo/burrow/internal/pet"
-	"github.com/anselmo/burrow/internal/storage"
+	"github.com/themanselmo/burrow/internal/locale"
+	"github.com/themanselmo/burrow/internal/pet"
+	"github.com/themanselmo/burrow/internal/storage"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
